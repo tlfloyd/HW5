@@ -1,6 +1,6 @@
 let s: string[] = [];
-s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
-s.push(`</canvas>`);
+// s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
+// s.push(`</canvas>`);
 s.push(`<h1>Banana Quest: The Potassium Crisis</h1>`);
 s.push(`<h3>In a land known as "Fruitopia," the inhabitants thrived on the delicious and nutritious fruits that grew abundantly.<br>
 		One fruit, in particular, was highly treasured - the mighty banana.<br>
@@ -16,17 +16,21 @@ s.push(`<h3>In a land known as "Fruitopia," the inhabitants thrived on the delic
 		The fate of Fruitopia hangs in the balance.<br><br>
 		tl;dr: Find 20 bananas to win.<br><br>
 		If you are willing to undertake this noble quest, please enter your name:</h3>`);
-s.push(`<input type="text"></input><button onclick="pushed_it();">Enter</button>`);
+s.push(`<input id="userInput"type="text"></input><button onclick="pushed_it();">Enter</button>`);
 console.log(s);
 const content = document.getElementById('content') as unknown as HTMLElement;
 content.innerHTML = s.join('');
 
+let username: string;
+
 function pushed_it(): void {
+	username = (<HTMLInputElement>document.getElementById("userInput"))!.value;
 	let gameDiv: string[] = [];
 	gameDiv.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
 	gameDiv.push(`</canvas>`);
-	gameDiv.push(`<script type="text/javascript" src="/main.js"></script>`);
 	content.innerHTML = gameDiv.join('');
+	let game = new Game();
+	let timer = setInterval(() => { game.onTimer(); }, 40);
 }
 
 interface HttpPostCallback {
@@ -51,8 +55,9 @@ class Sprite {
 	dest_x: number;
 	dest_y: number;
 	id: any;
+	username: string;
 
-	constructor(id:any, x: number, y: number, image_url: string, update_method: { (): void; (): void; (): void; }, onclick_method: { (x: number, y: number): void; (x: number, y: number): void; (x: number, y: number): void; }) {
+	constructor(id:any, x: number, y: number, uname: string, image_url: string, update_method: { (): void; (): void; (): void; }, onclick_method: { (x: number, y: number): void; (x: number, y: number): void; (x: number, y: number): void; }) {
 		this.id = id;
 		this.x = x;
 		this.y = y;
@@ -63,6 +68,7 @@ class Sprite {
 		this.image.src = image_url;
 		this.update = update_method;
 		this.onclick = onclick_method;
+		this.username = uname;
 	}
 
 	update(){
@@ -139,7 +145,7 @@ class Model {
 
 	constructor() {
 		this.sprites = [];
-		this.robot = new Sprite(g_id, 50, 50, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
+		this.robot = new Sprite(g_id, 50, 50, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
 		id_to_sprite[g_id] = this.robot;
 		this.sprites.push(this.robot);
 		this.onclick(50,50);
@@ -181,6 +187,8 @@ class View
 		ctx.clearRect(0, 0, 1000, 500);
 		for (const sprite of this.model.sprites) {
 			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height / 2);
+			ctx.font = "20px Verdana";
+			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height + 50);
 		}
 	}
 }
@@ -221,6 +229,7 @@ class Controller
 			action: 'click',
 			x: x,
 			y: y,
+			username: this.model.robot.username
 		}, this.onAcknowledgeClick);
 	}
 
@@ -243,7 +252,7 @@ class Controller
 	}
 
 	onReceiveUpdates(ob: any) {
-		// { "updates": [ ["id", 3112, 2131], ["id", 123, 321], ["id", 234, 654] ] }
+		// { "updates": [ ["id", 3112, 2131, "uname"], ["id", 123, 321, "uname"], ["id", 234, 654, "uname"] ] }
 		console.log(`ob = ${JSON.stringify(ob)}`);
 		if ("updates" in ob){
 			let updates = ob["updates"];
@@ -253,6 +262,7 @@ class Controller
 				let id = update[0];
 				let x = update[1];
 				let y = update[2];
+				let uname = update[3];
 
 				// find the sprite with id == id
 				for (let j = 0; j < this.model.sprites.length; j++){
@@ -262,7 +272,7 @@ class Controller
 						return;
 					}
 					else{
-						let newPlayer:Sprite = new Sprite(id, x, y, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
+						let newPlayer:Sprite = new Sprite(id, x, y, uname, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
 						this.model.sprites.push(newPlayer);
 						id_to_sprite[id] = newPlayer;
 						return;
@@ -290,7 +300,8 @@ class Controller
 				id: g_id,
 				action: 'getUpdates',
 				x: this.model.robot.x,
-				y: this.model.robot.y
+				y: this.model.robot.y,
+				uname: this.model.robot.username
 			}, (ob) => { return this.onReceiveUpdates(ob); });
 			// console.log(this.model.sprites)
 		}
@@ -317,8 +328,8 @@ class Game {
 }
 
 
-let game = new Game();
-let timer = setInterval(() => { game.onTimer(); }, 40);
+// let game = new Game();
+// let timer = setInterval(() => { game.onTimer(); }, 40);
 
 
 // Payload is a marshaled (but not JSON-stringified) object

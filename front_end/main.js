@@ -9,20 +9,23 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 var s = [];
-s.push("<canvas id=\"myCanvas\" width=\"1000\" height=\"500\" style=\"border:1px solid #cccccc;\">");
-s.push("</canvas>");
+// s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
+// s.push(`</canvas>`);
 s.push("<h1>Banana Quest: The Potassium Crisis</h1>");
 s.push("<h3>In a land known as \"Fruitopia,\" the inhabitants thrived on the delicious and nutritious fruits that grew abundantly.<br>\n\t\tOne fruit, in particular, was highly treasured - the mighty banana.<br>\n\t\tFruitopia's inhabitants had always enjoyed the health benefits and energy provided by this potassium-rich treat,\n\t\twhich fueled their daily adventures and brought joy to their lives.<br><br>\n\t\tBut one day, a mysterious phenomenon occurred: the banana crops across Fruitopia began to wither,\n\t\tand the supply of this essential fruit dwindled rapidly.<br>\n\t\tAs the days passed, the once energetic and lively inhabitants of Fruitopia started to feel weak and fatigued.<br>\n\t\tThe doctors and scientists of the land quickly identified the cause - a severe potassium deficiency was spreading among the residents,<br>\n\t\tand it threatened to plunge Fruitopia into a state of perpetual lethargy.<br>\n\t\tDesperate to restore the health and vitality of their beloved land,\n\t\tthe citizens of Fruitopia are turning to you to help them find 20 bananas.<br>\n\t\tThe fate of Fruitopia hangs in the balance.<br><br>\n\t\ttl;dr: Find 20 bananas to win.<br><br>\n\t\tIf you are willing to undertake this noble quest, please enter your name:</h3>");
-s.push("<input type=\"text\"></input><button onclick=\"pushed_it();\">Enter</button>");
+s.push("<input id=\"userInput\"type=\"text\"></input><button onclick=\"pushed_it();\">Enter</button>");
 console.log(s);
 var content = document.getElementById('content');
 content.innerHTML = s.join('');
+var username;
 function pushed_it() {
+    username = document.getElementById("userInput").value;
     var gameDiv = [];
     gameDiv.push("<canvas id=\"myCanvas\" width=\"1000\" height=\"500\" style=\"border:1px solid #cccccc;\">");
     gameDiv.push("</canvas>");
-    gameDiv.push("<script type=\"text/javascript\" src=\"/main.js\"></script>");
     content.innerHTML = gameDiv.join('');
+    var game = new Game();
+    var timer = setInterval(function () { game.onTimer(); }, 40);
 }
 var random_id = function (len) {
     var p = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -31,7 +34,7 @@ var random_id = function (len) {
 var g_origin = new URL(window.location.href).origin;
 var g_id = random_id(12);
 var Sprite = /** @class */ (function () {
-    function Sprite(id, x, y, image_url, update_method, onclick_method) {
+    function Sprite(id, x, y, uname, image_url, update_method, onclick_method) {
         this.speed_x = 8;
         this.speed_y = 8;
         this.id = id;
@@ -44,6 +47,7 @@ var Sprite = /** @class */ (function () {
         this.image.src = image_url;
         this.update = update_method;
         this.onclick = onclick_method;
+        this.username = uname;
     }
     Sprite.prototype.update = function () {
         this.go_toward_destination();
@@ -107,7 +111,7 @@ var Sprite = /** @class */ (function () {
 var Model = /** @class */ (function () {
     function Model() {
         this.sprites = [];
-        this.robot = new Sprite(g_id, 50, 50, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
+        this.robot = new Sprite(g_id, 50, 50, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
         id_to_sprite[g_id] = this.robot;
         this.sprites.push(this.robot);
         this.onclick(50, 50);
@@ -142,6 +146,8 @@ var View = /** @class */ (function () {
         for (var _i = 0, _a = this.model.sprites; _i < _a.length; _i++) {
             var sprite = _a[_i];
             ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height / 2);
+            ctx.font = "20px Verdana";
+            ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height + 50);
         }
     };
     return View;
@@ -170,6 +176,7 @@ var Controller = /** @class */ (function () {
             action: 'click',
             x: x,
             y: y,
+            username: this.model.robot.username
         }, this.onAcknowledgeClick);
     };
     Controller.prototype.keyDown = function (event) {
@@ -196,7 +203,7 @@ var Controller = /** @class */ (function () {
         console.log("Response to click: ".concat(JSON.stringify(ob)));
     };
     Controller.prototype.onReceiveUpdates = function (ob) {
-        // { "updates": [ ["id", 3112, 2131], ["id", 123, 321], ["id", 234, 654] ] }
+        // { "updates": [ ["id", 3112, 2131, "uname"], ["id", 123, 321, "uname"], ["id", 234, 654, "uname"] ] }
         console.log("ob = ".concat(JSON.stringify(ob)));
         if ("updates" in ob) {
             var updates = ob["updates"];
@@ -206,6 +213,7 @@ var Controller = /** @class */ (function () {
                 var id = update[0];
                 var x = update[1];
                 var y = update[2];
+                var uname = update[3];
                 // find the sprite with id == id
                 for (var j = 0; j < this.model.sprites.length; j++) {
                     if (id in id_to_sprite) {
@@ -214,7 +222,7 @@ var Controller = /** @class */ (function () {
                         return;
                     }
                     else {
-                        var newPlayer = new Sprite(id, x, y, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
+                        var newPlayer = new Sprite(id, x, y, uname, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
                         this.model.sprites.push(newPlayer);
                         id_to_sprite[id] = newPlayer;
                         return;
@@ -245,7 +253,8 @@ var Controller = /** @class */ (function () {
                 id: g_id,
                 action: 'getUpdates',
                 x: this.model.robot.x,
-                y: this.model.robot.y
+                y: this.model.robot.y,
+                uname: this.model.robot.username
             }, function (ob) { return _this.onReceiveUpdates(ob); });
             // console.log(this.model.sprites)
         }
@@ -265,8 +274,8 @@ var Game = /** @class */ (function () {
     };
     return Game;
 }());
-var game = new Game();
-var timer = setInterval(function () { game.onTimer(); }, 40);
+// let game = new Game();
+// let timer = setInterval(() => { game.onTimer(); }, 40);
 // Payload is a marshaled (but not JSON-stringified) object
 // A JSON-parsed response object will be passed to the callback
 var httpPost = function (page_name, payload, callback) {
