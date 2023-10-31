@@ -8,6 +8,55 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     return to.concat(ar || Array.prototype.slice.call(from));
 };
+// Payload is a marshaled (but not JSON-stringified) object
+// A JSON-parsed response object will be passed to the callback
+var httpPost = function (page_name, payload, callback) {
+    var request = new XMLHttpRequest();
+    request.onreadystatechange = function () {
+        if (request.readyState === 4) {
+            if (request.status === 200) {
+                var response_obj = void 0;
+                try {
+                    response_obj = JSON.parse(request.responseText);
+                }
+                catch (err) { }
+                if (response_obj) {
+                    callback(response_obj);
+                }
+                else {
+                    callback({
+                        status: 'error',
+                        message: 'response is not valid JSON',
+                        response: request.responseText,
+                    });
+                }
+            }
+            else {
+                if (request.status === 0 && request.statusText.length === 0) {
+                    callback({
+                        status: 'error',
+                        message: 'connection failed',
+                    });
+                }
+                else {
+                    callback({
+                        status: 'error',
+                        message: "server returned status ".concat(request.status, ": ").concat(request.statusText),
+                    });
+                }
+            }
+        }
+    };
+    request.open('post', "".concat(g_origin, "/").concat(page_name), true);
+    request.setRequestHeader('Content-Type', 'application/json');
+    console.log(payload);
+    request.send(JSON.stringify(payload));
+};
+function onReceiveMap(ob) {
+}
+httpPost('ajax.html', {
+    action: 'getMap',
+}, this.onReceiveMap);
 var s = [];
 // s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
 // s.push(`</canvas>`);
@@ -143,6 +192,8 @@ var View = /** @class */ (function () {
     View.prototype.update = function () {
         var ctx = this.canvas.getContext("2d");
         ctx.clearRect(0, 0, 1000, 500);
+        ctx.fillStyle = "#50C878";
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         for (var _i = 0, _a = this.model.sprites; _i < _a.length; _i++) {
             var sprite = _a[_i];
             ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height / 2);
@@ -274,49 +325,3 @@ var Game = /** @class */ (function () {
     };
     return Game;
 }());
-// let game = new Game();
-// let timer = setInterval(() => { game.onTimer(); }, 40);
-// Payload is a marshaled (but not JSON-stringified) object
-// A JSON-parsed response object will be passed to the callback
-var httpPost = function (page_name, payload, callback) {
-    var request = new XMLHttpRequest();
-    request.onreadystatechange = function () {
-        if (request.readyState === 4) {
-            if (request.status === 200) {
-                var response_obj = void 0;
-                try {
-                    response_obj = JSON.parse(request.responseText);
-                }
-                catch (err) { }
-                if (response_obj) {
-                    callback(response_obj);
-                }
-                else {
-                    callback({
-                        status: 'error',
-                        message: 'response is not valid JSON',
-                        response: request.responseText,
-                    });
-                }
-            }
-            else {
-                if (request.status === 0 && request.statusText.length === 0) {
-                    callback({
-                        status: 'error',
-                        message: 'connection failed',
-                    });
-                }
-                else {
-                    callback({
-                        status: 'error',
-                        message: "server returned status ".concat(request.status, ": ").concat(request.statusText),
-                    });
-                }
-            }
-        }
-    };
-    request.open('post', "".concat(g_origin, "/").concat(page_name), true);
-    request.setRequestHeader('Content-Type', 'application/json');
-    console.log(payload);
-    request.send(JSON.stringify(payload));
-};

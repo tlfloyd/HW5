@@ -1,3 +1,4 @@
+import json
 from typing import Mapping, Any, List, Dict, Tuple
 import os
 from http_daemon import delay_open_url, serve_pages
@@ -13,6 +14,13 @@ class Player():
 
 players: Dict[str, Player] = {}
 history: List[Player] = []
+map: Mapping[str, Any] = {}
+
+def load_map() -> None:
+  global map
+  with open('map.json', 'rb') as f:
+      s = f.read()
+  map = json.loads(s)
 
 def find_player(id:str) -> Player:
     if id in players:
@@ -41,6 +49,11 @@ def update(payload: Mapping[str, Any]) -> Mapping[str, Any]:
             updates.append((playerUpdate.id, playerUpdate.x, playerUpdate.y))
         return {
             "updates": updates
+        }
+    elif action == 'getMap':
+        return {
+            'status': 'map',
+            'map': map
         }
     else:
         return {

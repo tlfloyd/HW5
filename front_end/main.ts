@@ -1,3 +1,67 @@
+// Payload is a marshaled (but not JSON-stringified) object
+// A JSON-parsed response object will be passed to the callback
+const httpPost = (page_name: string, payload: any, callback: HttpPostCallback) => {
+	let request = new XMLHttpRequest();
+	request.onreadystatechange = () => {
+		if(request.readyState === 4)
+		{
+			if(request.status === 200) {
+				let response_obj;
+				try {
+					response_obj = JSON.parse(request.responseText);
+				} catch(err) {}
+				if (response_obj) {
+					callback(response_obj);
+				} else {
+					callback({
+						status: 'error',
+						message: 'response is not valid JSON',
+						response: request.responseText,
+					});
+				}
+			} else {
+				if(request.status === 0 && request.statusText.length === 0) {
+					callback({
+						status: 'error',
+						message: 'connection failed',
+					});
+				} else {
+					callback({
+						status: 'error',
+						message: `server returned status ${request.status}: ${request.statusText}`,
+					});
+				}
+			}
+		}
+	};
+	request.open('post', `${g_origin}/${page_name}`, true);
+	request.setRequestHeader('Content-Type', 'application/json');
+	console.log(payload);
+	request.send(JSON.stringify(payload));
+}
+
+function onReceiveMap(ob: any) {
+	// { "map": [ ["kind", x, y], ["kind", x, y], ["kind", x, y] ] }
+	if ("map" in ob){
+		let map = ob["map"];
+		let count = Object.keys(map).length;
+		for (let i = 0; i < count; i++){
+			let image = ob["map"][i];
+			let kind = image[0];
+			let x = image[1];
+			let y = image[2];
+
+			let newImage: Sprite = new Sprite(kind, x, y, "", `${kind}.png`, Sprite.prototype.sit_still, Sprite.prototype.ignore_click);
+		}
+	}
+}
+
+httpPost('ajax.html', {
+	action: 'getMap',
+}, this.onReceiveMap);
+
+
+
 let s: string[] = [];
 // s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
 // s.push(`</canvas>`);
@@ -142,6 +206,7 @@ class Sprite {
 class Model {
 	robot: Sprite;
 	sprites: Sprite[];
+	mapElements: Sprite[];
 
 	constructor() {
 		this.sprites = [];
@@ -153,6 +218,9 @@ class Model {
 
 	update() {
 		for (const sprite of this.sprites) {
+			sprite.update();
+		}
+		for (const sprite of this.mapElements) {
 			sprite.update();
 		}
 	}
@@ -185,10 +253,15 @@ class View
 	update() {
 		let ctx = this.canvas.getContext("2d") as CanvasRenderingContext2D;
 		ctx.clearRect(0, 0, 1000, 500);
+		ctx.fillStyle = "#50C878"
+		ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 		for (const sprite of this.model.sprites) {
 			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height / 2);
 			ctx.font = "20px Verdana";
 			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height + 50);
+		}
+		for (const sprite of this.model.mapElements) {
+			ctx.drawImage(sprite.image, sprite.x - g_scroll_x, sprite.y - g_scroll_y);
 		}
 	}
 }
@@ -325,51 +398,4 @@ class Game {
 		this.model.update();
 		this.view.update();
 	}
-}
-
-
-// let game = new Game();
-// let timer = setInterval(() => { game.onTimer(); }, 40);
-
-
-// Payload is a marshaled (but not JSON-stringified) object
-// A JSON-parsed response object will be passed to the callback
-const httpPost = (page_name: string, payload: any, callback: HttpPostCallback) => {
-	let request = new XMLHttpRequest();
-	request.onreadystatechange = () => {
-		if(request.readyState === 4)
-		{
-			if(request.status === 200) {
-				let response_obj;
-				try {
-					response_obj = JSON.parse(request.responseText);
-				} catch(err) {}
-				if (response_obj) {
-					callback(response_obj);
-				} else {
-					callback({
-						status: 'error',
-						message: 'response is not valid JSON',
-						response: request.responseText,
-					});
-				}
-			} else {
-				if(request.status === 0 && request.statusText.length === 0) {
-					callback({
-						status: 'error',
-						message: 'connection failed',
-					});
-				} else {
-					callback({
-						status: 'error',
-						message: `server returned status ${request.status}: ${request.statusText}`,
-					});
-				}
-			}
-		}
-	};
-	request.open('post', `${g_origin}/${page_name}`, true);
-	request.setRequestHeader('Content-Type', 'application/json');
-	console.log(payload);
-	request.send(JSON.stringify(payload));
 }
