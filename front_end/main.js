@@ -93,12 +93,31 @@ content.innerHTML = s.join('');
 var username;
 function pushed_it() {
     username = document.getElementById("userInput").value;
-    var gameDiv = [];
-    gameDiv.push("<canvas id=\"myCanvas\" width=\"1000\" height=\"500\" style=\"border:1px solid #cccccc;\">");
-    gameDiv.push("</canvas>");
-    content.innerHTML = gameDiv.join('');
+    s = [];
+    s.push("<canvas id=\"myCanvas\" width=\"1000\" height=\"600\" style=\"border:1px solid #cccccc;\">");
+    s.push("</canvas>");
+    s.push("<br><big><big><b>\n\t\t\tGold: <span id=\"gold\">0</span>,\n\t\t\tBananas: <span id=\"bananas\">0</span>\n\t\t\t</b></big></big><br>");
+    s.push("<br>\n\t\t\t<select id=\"chatWindow\" size=\"8\" style=\"width:1000px\"></select>\n\t\t\t<br>\n\t\t\t<input type=\"input\" id=\"chatMessage\"></input>\n\t\t\t<button onclick=\"postChatMessage()\">Post</button>");
+    content.innerHTML = s.join('');
     var game = new Game();
     var timer = setInterval(function () { game.onTimer(); }, 40);
+}
+function postChatMessage() {
+    var input = document.getElementById("chatMessage");
+    var text = document.getElementById("chatMessage").value;
+    httpPost('ajax.html', {
+        "action": "chat",
+        "id": g_id,
+        "text": text
+    }, onAcknowledgeChat);
+    var chatWindow = document.getElementById("chatWindow");
+    var newChat = document.createElement("option");
+    newChat.text = text;
+    chatWindow.appendChild(newChat);
+    text = '';
+}
+function onAcknowledgeChat(ob) {
+    console.log("Response to chat: ".concat(JSON.stringify(ob)));
 }
 var random_id = function (len) {
     var p = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -107,15 +126,16 @@ var random_id = function (len) {
 var g_origin = new URL(window.location.href).origin;
 var g_id = random_id(12);
 var center_x = 500;
-var center_y = 250;
+var center_y = 300;
 var scroll_rate = 0.03;
+var chats = [];
 var Sprite = /** @class */ (function () {
     function Sprite(id, x, y, uname, image_url, update_method, onclick_method) {
         this.speed_x = 8;
         this.speed_y = 8;
         this.id = id;
         this.x = x;
-        this.y = y;
+        this.y = x;
         this.dest_x = x;
         this.dest_y = y;
         this.speed = 8;
@@ -191,14 +211,12 @@ var Model = /** @class */ (function () {
         this.robot_scroll_x = 0;
         this.robot_scroll_y = 0;
         this.sprites = [];
-        this.robot = new Sprite(g_id, 50, 50, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
+        this.robot = new Sprite(g_id, 400, 200, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
         id_to_sprite[g_id] = this.robot;
-        this.sprites.push(this.robot);
-        this.onclick(50, 50);
+        this.onclick(500, 300);
     }
     Model.prototype.update = function () {
-        this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
-        this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
+        this.robot.update();
         for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
             var sprite = _a[_i];
             sprite.update();
@@ -207,12 +225,17 @@ var Model = /** @class */ (function () {
             var sprite = mapElements_1[_b];
             sprite.update();
         }
+        this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
+        this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
     };
     Model.prototype.onclick = function (x, y) {
+        this.robot.onclick(x, y);
         for (var _i = 0, _a = this.sprites; _i < _a.length; _i++) {
             var sprite = _a[_i];
             sprite.onclick(x, y);
         }
+        // this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
+        // this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
     };
     Model.prototype.move = function (dx, dy) {
         this.robot.move(dx, dy);
@@ -232,11 +255,26 @@ var View = /** @class */ (function () {
         ctx.fillStyle = "#50C878";
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.textBaseline = 'middle';
+        ctx.font = "20px Verdana";
+        ctx.fillStyle = "#000";
+        // Draw player robot ----------------------------------------------------------------
+        var nameOffset = ctx.measureText(this.model.robot.username).width / 2;
+        if (nameOffset > this.model.robot.image.width) {
+            nameOffset = nameOffset - (this.model.robot.image.width / 2);
+        }
+        else if (nameOffset < this.model.robot.image.width / 2) {
+            nameOffset = ((this.model.robot.image.width / 2) - nameOffset) * -1;
+        }
+        else {
+            nameOffset = 0;
+        }
+        ctx.fillText(this.model.robot.username, this.model.robot.x - this.model.robot.image.width / 2 - nameOffset - this.model.robot_scroll_x, this.model.robot.y - this.model.robot.image.height + 50 - this.model.robot_scroll_y);
+        ctx.drawImage(this.model.robot.image, this.model.robot.x - this.model.robot.image.width / 2 - this.model.robot_scroll_x, this.model.robot.y - this.model.robot.image.height / 2 - this.model.robot_scroll_y);
+        // ----------------------------------------------------------------------------------
+        // Draw other player robots ---------------------------------------------------------
         for (var _i = 0, _a = this.model.sprites; _i < _a.length; _i++) {
             var sprite = _a[_i];
-            ctx.font = "20px Verdana";
-            ctx.fillStyle = "#000";
-            var nameOffset = ctx.measureText(sprite.username).width / 2;
+            nameOffset = ctx.measureText(sprite.username).width / 2;
             if (nameOffset > sprite.image.width) {
                 nameOffset = nameOffset - (sprite.image.width / 2);
             }
@@ -246,15 +284,16 @@ var View = /** @class */ (function () {
             else {
                 nameOffset = 0;
             }
-            console.log(nameOffset);
-            ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2 - nameOffset - this.model.robot_scroll_x, sprite.y - sprite.image.height + 50 - this.model.robot_scroll_y);
-            ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2 - this.model.robot_scroll_x, sprite.y - sprite.image.height / 2 - this.model.robot_scroll_y);
+            ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2 - nameOffset - this.map_scroll_x, sprite.y - sprite.image.height + 50 - this.map_scroll_y);
+            ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2 - this.map_scroll_x, sprite.y - sprite.image.height / 2 - this.map_scroll_y);
         }
+        // ----------------------------------------------------------------------------------
+        // Draw map objects -----------------------------------------------------------------
         for (var _b = 0, mapElements_2 = mapElements; _b < mapElements_2.length; _b++) {
             var sprite = mapElements_2[_b];
             ctx.drawImage(sprite.image, sprite.x - this.map_scroll_x, sprite.y - this.map_scroll_y);
-            console.log(sprite.username);
         }
+        // ----------------------------------------------------------------------------------
     };
     return View;
 }());
@@ -283,7 +322,7 @@ var Controller = /** @class */ (function () {
             action: 'click',
             x: x,
             y: y,
-            username: this.model.robot.username
+            uname: this.model.robot.username
         }, this.onAcknowledgeClick);
     };
     Controller.prototype.keyDown = function (event) {
@@ -322,18 +361,36 @@ var Controller = /** @class */ (function () {
                 var y = update[2];
                 var uname = update[3];
                 // find the sprite with id == id
-                for (var j = 0; j < this.model.sprites.length; j++) {
+                for (var j = 0; j <= this.model.sprites.length; j++) {
                     if (id in id_to_sprite) {
                         var sprite1 = id_to_sprite[id];
                         sprite1.set_destination(x, y);
                         return;
                     }
                     else {
+                        console.log('TESTINGTESTING');
                         var newPlayer = new Sprite(id, x, y, uname, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
                         this.model.sprites.push(newPlayer);
                         id_to_sprite[id] = newPlayer;
                         return;
                     }
+                }
+            }
+            if ("gold" in ob) {
+                var gold = ob["gold"].toString();
+                document.getElementById('gold').innerHTML = gold;
+            }
+            if ("bananas" in ob) {
+                var bananas = ob["bananas"].toString();
+                document.getElementById('bananas').innerHTML = bananas;
+            }
+            if ("chats" in ob) {
+                var chatWindow = document.getElementById("chatWindow");
+                for (var _i = 0, chats_1 = chats; _i < chats_1.length; _i++) {
+                    var chat = chats_1[_i];
+                    var newChat = document.createElement("option");
+                    newChat.text = chat;
+                    chatWindow.appendChild(newChat);
                 }
             }
         }
@@ -342,7 +399,7 @@ var Controller = /** @class */ (function () {
         var _this = this;
         var dx = 0;
         var dy = 0;
-        var speed = this.model.robot.speed;
+        var speed = 5;
         if (this.key_right) {
             dx += speed;
             this.view.map_scroll_x += this.map_scroll_speed;
@@ -361,6 +418,25 @@ var Controller = /** @class */ (function () {
         }
         if (dx != 0 || dy != 0)
             this.model.move(dx, dy);
+        if (this.model.robot.x < this.model.robot.dest_x) {
+            this.map_scroll_speed = 10;
+            this.view.map_scroll_x += this.map_scroll_speed;
+        }
+        if (this.model.robot.x > this.model.robot.dest_x) {
+            this.map_scroll_speed = 10;
+            this.view.map_scroll_x -= this.map_scroll_speed;
+        }
+        if (this.model.robot.y > this.model.robot.dest_y) {
+            this.map_scroll_speed = 10;
+            this.view.map_scroll_y -= this.map_scroll_speed;
+        }
+        if (this.model.robot.y < this.model.robot.dest_y) {
+            this.map_scroll_speed = 10;
+            this.view.map_scroll_y += this.map_scroll_speed;
+        }
+        if (this.model.robot.x == this.model.robot.dest_x && this.model.robot.y == this.model.robot.dest_y) {
+            this.map_scroll_speed = 0;
+        }
         var time = Date.now();
         if (time - this.last_updates_request_time >= 1000) {
             this.last_updates_request_time = time;

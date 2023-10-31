@@ -100,12 +100,39 @@ let username: string;
 
 function pushed_it(): void {
 	username = (<HTMLInputElement>document.getElementById("userInput"))!.value;
-	let gameDiv: string[] = [];
-	gameDiv.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
-	gameDiv.push(`</canvas>`);
-	content.innerHTML = gameDiv.join('');
+	s = [];
+	s.push(`<canvas id="myCanvas" width="1000" height="600" style="border:1px solid #cccccc;">`);
+	s.push(`</canvas>`);
+	s.push(`<br><big><big><b>
+			Gold: <span id="gold">0</span>,
+			Bananas: <span id="bananas">0</span>
+			</b></big></big><br>`);
+	s.push(`<br>
+			<select id="chatWindow" size="8" style="width:1000px"></select>
+			<br>
+			<input type="input" id="chatMessage"></input>
+			<button onclick="postChatMessage()">Post</button>`);
+	content.innerHTML = s.join('');
 	let game = new Game();
 	let timer = setInterval(() => { game.onTimer(); }, 40);
+}
+
+function postChatMessage(): void {
+	let input = document.getElementById("chatMessage") as HTMLElement;
+	let text: string = (<HTMLInputElement>document.getElementById("chatMessage"))!.value;
+	httpPost('ajax.html', {
+		"action": "chat",
+		"id": g_id,
+		"text": text
+	}, onAcknowledgeChat);
+	let chatWindow = document.getElementById("chatWindow") as HTMLElement;
+	let newChat = document.createElement("option");
+	newChat.text = text;
+	chatWindow.appendChild(newChat);
+}
+
+function onAcknowledgeChat(ob: any) {
+	console.log(`Response to chat: ${JSON.stringify(ob)}`);
 }
 
 interface HttpPostCallback {
@@ -121,8 +148,10 @@ const g_origin = new URL(window.location.href).origin;
 const g_id = random_id(12);
 
 const center_x = 500;
-const center_y = 250;
+const center_y = 300;
 const scroll_rate = 0.03;
+
+let chats: string[] = [];
 
 class Sprite {
 	x: number;
@@ -139,7 +168,7 @@ class Sprite {
 	constructor(id:any, x: number, y: number, uname: string, image_url: string, update_method: { (): void; (): void; (): void; }, onclick_method: { (x: number, y: number): void; (x: number, y: number): void; (x: number, y: number): void; }) {
 		this.id = id;
 		this.x = x;
-		this.y = y;
+		this.y = x;
 		this.dest_x = x;
 		this.dest_y = y;
         this.speed = 8;
@@ -228,27 +257,30 @@ class Model {
 
 	constructor() {
 		this.sprites = [];
-		this.robot = new Sprite(g_id, 50, 50, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
+		this.robot = new Sprite(g_id, 400, 200, username, "blue_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.set_destination);
 		id_to_sprite[g_id] = this.robot;
-		this.sprites.push(this.robot);
-		this.onclick(50,50);
+		this.onclick(500,300);
 	}
 
 	update() {
-		this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
-		this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
+		this.robot.update();
 		for (const sprite of this.sprites) {
 			sprite.update();
 		}
 		for (const sprite of mapElements) {
 			sprite.update();
 		}
+		this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
+		this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
 	}
 
 	onclick(x: number, y: number) {
+		this.robot.onclick(x, y);
 		for (const sprite of this.sprites) {
 			sprite.onclick(x, y);
 		}
+		// this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
+		// this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
 	}
 
 	move(dx: number, dy: number) {
@@ -275,10 +307,25 @@ class View
 		ctx.fillStyle = "#50C878";
 		ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 		ctx.textBaseline = 'middle';
+		ctx.font = "20px Verdana";
+		ctx.fillStyle = "#000";
+		// Draw player robot ----------------------------------------------------------------
+		let nameOffset = ctx.measureText(this.model.robot.username).width / 2;
+		if (nameOffset > this.model.robot.image.width) {
+			nameOffset = nameOffset - (this.model.robot.image.width / 2);
+		}
+		else if (nameOffset < this.model.robot.image.width / 2) {
+			nameOffset = ((this.model.robot.image.width / 2) - nameOffset) * -1;
+		}
+		else {
+			nameOffset = 0;
+		}
+		ctx.fillText(this.model.robot.username, this.model.robot.x - this.model.robot.image.width / 2 - nameOffset - this.model.robot_scroll_x, this.model.robot.y - this.model.robot.image.height + 50 - this.model.robot_scroll_y);
+		ctx.drawImage(this.model.robot.image, this.model.robot.x - this.model.robot.image.width / 2 - this.model.robot_scroll_x, this.model.robot.y - this.model.robot.image.height / 2 - this.model.robot_scroll_y);
+		// ----------------------------------------------------------------------------------
+		// Draw other player robots ---------------------------------------------------------
 		for (const sprite of this.model.sprites) {
-			ctx.font = "20px Verdana";
-			ctx.fillStyle = "#000";
-			let nameOffset = ctx.measureText(sprite.username).width / 2;
+			nameOffset = ctx.measureText(sprite.username).width / 2;
 			if (nameOffset > sprite.image.width) {
 				nameOffset = nameOffset - (sprite.image.width / 2);
 			}
@@ -288,14 +335,15 @@ class View
 			else {
 				nameOffset = 0;
 			}
-			console.log(nameOffset);
-			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2 - nameOffset - this.model.robot_scroll_x, sprite.y - sprite.image.height + 50 - this.model.robot_scroll_y);
-			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2 - this.model.robot_scroll_x, sprite.y - sprite.image.height / 2 - this.model.robot_scroll_y);
+			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2 - nameOffset - this.map_scroll_x, sprite.y - sprite.image.height + 50 - this.map_scroll_y);
+			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2 - this.map_scroll_x, sprite.y - sprite.image.height / 2 - this.map_scroll_y);
 		}
+		// ----------------------------------------------------------------------------------
+		// Draw map objects -----------------------------------------------------------------
 		for (const sprite of mapElements) {
 			ctx.drawImage(sprite.image, sprite.x - this.map_scroll_x, sprite.y - this.map_scroll_y);
-			console.log(sprite.username);
 		}
+		// ----------------------------------------------------------------------------------
 	}
 }
 
@@ -336,7 +384,7 @@ class Controller
 			action: 'click',
 			x: x,
 			y: y,
-			username: this.model.robot.username
+			uname: this.model.robot.username
 		}, this.onAcknowledgeClick);
 	}
 
@@ -372,13 +420,14 @@ class Controller
 				let uname = update[3];
 
 				// find the sprite with id == id
-				for (let j = 0; j < this.model.sprites.length; j++){
+				for (let j = 0; j <= this.model.sprites.length; j++){
 					if (id in id_to_sprite){
 						const sprite1 = id_to_sprite[id];
 						sprite1.set_destination(x, y);
 						return;
 					}
 					else{
+						console.log('TESTINGTESTING');
 						let newPlayer:Sprite = new Sprite(id, x, y, uname, "green_robot.png", Sprite.prototype.go_toward_destination, Sprite.prototype.ignore_click);
 						this.model.sprites.push(newPlayer);
 						id_to_sprite[id] = newPlayer;
@@ -386,13 +435,29 @@ class Controller
 					}
 				}
 			}
+			if ("gold" in ob){
+				let gold: string = ob["gold"].toString();
+				document.getElementById('gold')!.innerHTML = gold;
+			}
+			if ("bananas" in ob){
+				let bananas: string = ob["bananas"].toString();
+				document.getElementById('bananas')!.innerHTML = bananas;
+			}
+			if ("chats" in ob){
+				let chatWindow = document.getElementById("chatWindow") as HTMLElement;
+				for (const chat of chats){
+					let newChat = document.createElement("option");
+					newChat.text = chat;
+					chatWindow.appendChild(newChat);
+				}
+			}
 		}
 	}
 
 	update() {
-		let dx = 0;
-		let dy = 0;
-        let speed = this.model.robot.speed;
+		let dx: number = 0;
+		let dy: number = 0;
+		let speed = 5;
 		if(this.key_right) {
 			dx += speed;
 			this.view.map_scroll_x += this.map_scroll_speed;
@@ -412,7 +477,26 @@ class Controller
 		if(dx != 0 || dy != 0)
 			this.model.move(dx, dy);
 
-
+		if (this.model.robot.x < this.model.robot.dest_x){
+			this.map_scroll_speed = 10;
+			this.view.map_scroll_x += this.map_scroll_speed;
+		}
+		if (this.model.robot.x > this.model.robot.dest_x){
+			this.map_scroll_speed = 10;
+			this.view.map_scroll_x -= this.map_scroll_speed;
+		}
+		if (this.model.robot.y > this.model.robot.dest_y){
+			this.map_scroll_speed = 10;
+			this.view.map_scroll_y -= this.map_scroll_speed;
+		}
+		if (this.model.robot.y < this.model.robot.dest_y){
+			this.map_scroll_speed = 10;
+			this.view.map_scroll_y += this.map_scroll_speed;
+		}
+		if (this.model.robot.x == this.model.robot.dest_x && this.model.robot.y == this.model.robot.dest_y) {
+			this.map_scroll_speed = 0;
+		}
+		
 		const time = Date.now();
 		if (time - this.last_updates_request_time >= 1000) {
 			this.last_updates_request_time = time;
@@ -425,6 +509,7 @@ class Controller
 			}, (ob) => { return this.onReceiveUpdates(ob); });
 			// console.log(this.model.sprites)
 		}
+
 	}
 }
 

@@ -17,11 +17,11 @@ players: Dict[str, Player] = {}
 history: List[Player] = []
 map: Mapping[str, Any] = {}
 
-def load_map() -> None:
-  global map
-  with open('map.json', 'rb') as f:
-      s = f.read()
-  map = json.loads(s)
+# def load_map() -> None:
+#   global map
+#   with open('map.json', 'rb') as f:
+#       s = f.read()
+#   map = json.loads(s)
 
 def find_player(id:str, uname:str) -> Player:
     if id in players:
