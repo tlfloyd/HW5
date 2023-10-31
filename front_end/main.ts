@@ -40,6 +40,20 @@ const httpPost = (page_name: string, payload: any, callback: HttpPostCallback) =
 	request.send(JSON.stringify(payload));
 }
 
+let mapElements: Sprite[] = [];
+const thing_names = [
+	"chair", // 0
+	"lamp",
+	"mushroom", // 2
+	"outhouse",
+	"pillar", // 4
+	"pond",
+	"rock", // 6
+	"statue",
+	"tree", // 8
+	"turtle",
+];
+
 function onReceiveMap(ob: any) {
 	// { "map": [ ["kind", x, y], ["kind", x, y], ["kind", x, y] ] }
 	if ("map" in ob){
@@ -51,20 +65,17 @@ function onReceiveMap(ob: any) {
 			let x = image[1];
 			let y = image[2];
 
-			let newImage: Sprite = new Sprite(kind, x, y, "", `${kind}.png`, Sprite.prototype.sit_still, Sprite.prototype.ignore_click);
+			let newImage: Sprite = new Sprite(kind, x, y, "", `${thing_names[kind]}.png`, Sprite.prototype.sit_still, Sprite.prototype.ignore_click);
+			mapElements.push(newImage);
 		}
 	}
 }
 
-httpPost('ajax.html', {
-	action: 'getMap',
-}, this.onReceiveMap);
-
-
+// httpPost('ajax.html', {
+// 	action: 'getMap',
+// }, this.onReceiveMap);
 
 let s: string[] = [];
-// s.push(`<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;">`);
-// s.push(`</canvas>`);
 s.push(`<h1>Banana Quest: The Potassium Crisis</h1>`);
 s.push(`<h3>In a land known as "Fruitopia," the inhabitants thrived on the delicious and nutritious fruits that grew abundantly.<br>
 		One fruit, in particular, was highly treasured - the mighty banana.<br>
@@ -108,6 +119,10 @@ const random_id = (len:number) => {
 
 const g_origin = new URL(window.location.href).origin;
 const g_id = random_id(12);
+
+const center_x = 500;
+const center_y = 250;
+const scroll_rate = 0.03;
 
 class Sprite {
 	x: number;
@@ -183,6 +198,8 @@ class Sprite {
 	move(dx: number, dy: number) {
 		this.dest_x = this.x + dx;
 		this.dest_y = this.y + dy;
+		this.speed_x = 8;
+		this.speed_y = 8;
 	}
 
 	go_toward_destination() {
@@ -206,7 +223,8 @@ class Sprite {
 class Model {
 	robot: Sprite;
 	sprites: Sprite[];
-	mapElements: Sprite[];
+	robot_scroll_x = 0;
+	robot_scroll_y = 0;
 
 	constructor() {
 		this.sprites = [];
@@ -217,10 +235,12 @@ class Model {
 	}
 
 	update() {
+		this.robot_scroll_x += scroll_rate * (this.robot.x - this.robot_scroll_x - center_x);
+		this.robot_scroll_y += scroll_rate * (this.robot.y - this.robot_scroll_y - center_y);
 		for (const sprite of this.sprites) {
 			sprite.update();
 		}
-		for (const sprite of this.mapElements) {
+		for (const sprite of mapElements) {
 			sprite.update();
 		}
 	}
@@ -241,27 +261,40 @@ class View
 {
 	model: Model;
 	canvas: HTMLCanvasElement;
-	robot: HTMLImageElement;
+	map_scroll_x: number = 0;
+	map_scroll_y: number = 0;
 	
 	constructor(model: Model) {
 		this.model = model;
 		this.canvas = document.getElementById("myCanvas") as HTMLCanvasElement;
-		this.robot = new Image();
-		this.robot.src = "blue_robot.png";
 	}
 
 	update() {
 		let ctx = this.canvas.getContext("2d") as CanvasRenderingContext2D;
 		ctx.clearRect(0, 0, 1000, 500);
-		ctx.fillStyle = "#50C878"
+		ctx.fillStyle = "#50C878";
 		ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+		ctx.textBaseline = 'middle';
 		for (const sprite of this.model.sprites) {
-			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height / 2);
 			ctx.font = "20px Verdana";
-			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2, sprite.y - sprite.image.height + 50);
+			ctx.fillStyle = "#000";
+			let nameOffset = ctx.measureText(sprite.username).width / 2;
+			if (nameOffset > sprite.image.width) {
+				nameOffset = nameOffset - (sprite.image.width / 2);
+			}
+			else if (nameOffset < sprite.image.width / 2) {
+				nameOffset = ((sprite.image.width / 2) - nameOffset) * -1;
+			}
+			else {
+				nameOffset = 0;
+			}
+			console.log(nameOffset);
+			ctx.fillText(sprite.username, sprite.x - sprite.image.width / 2 - nameOffset - this.model.robot_scroll_x, sprite.y - sprite.image.height + 50 - this.model.robot_scroll_y);
+			ctx.drawImage(sprite.image, sprite.x - sprite.image.width / 2 - this.model.robot_scroll_x, sprite.y - sprite.image.height / 2 - this.model.robot_scroll_y);
 		}
-		for (const sprite of this.model.mapElements) {
-			ctx.drawImage(sprite.image, sprite.x - g_scroll_x, sprite.y - g_scroll_y);
+		for (const sprite of mapElements) {
+			ctx.drawImage(sprite.image, sprite.x - this.map_scroll_x, sprite.y - this.map_scroll_y);
+			console.log(sprite.username);
 		}
 	}
 }
@@ -277,6 +310,7 @@ class Controller
 	key_up: boolean;
 	key_down: boolean;
 	last_updates_request_time: number;
+	map_scroll_speed = 10;
 	
 	constructor(model: Model, view: View) {
 		this.model = model;
@@ -359,12 +393,25 @@ class Controller
 		let dx = 0;
 		let dy = 0;
         let speed = this.model.robot.speed;
-		if(this.key_right) dx += speed;
-		if(this.key_left) dx -= speed;
-		if(this.key_up) dy -= speed;
-		if(this.key_down) dy += speed;
+		if(this.key_right) {
+			dx += speed;
+			this.view.map_scroll_x += this.map_scroll_speed;
+		}
+		if(this.key_left) { 
+			dx -= speed;
+			this.view.map_scroll_x -= this.map_scroll_speed;
+		}
+		if(this.key_up) {
+			dy -= speed;
+			this.view.map_scroll_y -= this.map_scroll_speed;
+		}
+		if(this.key_down) {
+			dy += speed;
+			this.view.map_scroll_y += this.map_scroll_speed;
+		}
 		if(dx != 0 || dy != 0)
 			this.model.move(dx, dy);
+
 
 		const time = Date.now();
 		if (time - this.last_updates_request_time >= 1000) {
@@ -391,6 +438,7 @@ class Game {
 		this.model = new Model();
 		this.view = new View(this.model);
 		this.controller = new Controller(this.model, this.view);
+		mapElements.push(new Sprite("chair", 100, 100, "", "green_robot.png", Sprite.prototype.sit_still, Sprite.prototype.ignore_click));
 	}
 
 	onTimer() {

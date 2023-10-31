@@ -6,10 +6,11 @@ from http_daemon import delay_open_url, serve_pages
 lastUpdate:int = 0
 
 class Player():
-    def __init__(self, id:str) -> None:
+    def __init__(self, id:str, uname:str) -> None:
         self.id = id
         self.x = 0
         self.y = 0
+        self.username = uname
         self.what_i_know:int = 0
 
 players: Dict[str, Player] = {}
@@ -22,31 +23,32 @@ def load_map() -> None:
       s = f.read()
   map = json.loads(s)
 
-def find_player(id:str) -> Player:
+def find_player(id:str, uname:str) -> Player:
     if id in players:
         return players[id]
     else:
-        players[id] = Player(id)
+        players[id] = Player(id, uname)
         return players[id]
 
 def update(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     action = payload["action"]
     if action == 'click':
-        player = find_player(payload["id"])
+        player = find_player(payload["id"], payload["uname"])
         player.x = payload["x"]
         player.y = payload["y"]
+        player.username = payload["uname"]
         history.append(player)
         return {
             'message': 'click recorded'
         }
     elif action == 'getUpdates':
-        player = find_player(payload["id"])
+        player = find_player(payload["id"], payload["uname"])
         remaining_history = history[player.what_i_know:]
         player.what_i_know = len(history)
-        updates: List[Tuple[str, int, int]] = []
+        updates: List[Tuple[str, int, int, str]] = []
         for i in range(len(remaining_history)):
             playerUpdate = remaining_history[i]
-            updates.append((playerUpdate.id, playerUpdate.x, playerUpdate.y))
+            updates.append((playerUpdate.id, playerUpdate.x, playerUpdate.y, playerUpdate.username))
         return {
             "updates": updates
         }
